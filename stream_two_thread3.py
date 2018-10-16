@@ -4,6 +4,7 @@ import Queue
 import cv2
 import numpy as np
 import sys
+import os
 #---------------------Khai bao class---------------------
 #tien trinh ham doc
 class thread_read_img(threading.Thread):
@@ -42,29 +43,18 @@ def read_img(cap):
     if cap.isOpened():
         while exitFlag:
             if(img_queue.full()):
-                print "waiting show img..."
-                #print "hang doi%d \n"%(img_queue.qsize())
+                img_queue.get()
             else:
                 OK = cap.grab();
                 if (OK == True):
-                    print "read..."
-                    left = 0
-                    right = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
-                    if(right>10):
-                        right=right-1
-                    cap.set(cv2.cv.CV_CAP_PROP_POS_FRAMES,right)
                     ret_val, img_raw = cap.read()
-                    count+=1
-                    img_raw = cv2.resize (img_raw, None, fx = 0.3, fy = 0.3,interpolation =cv2.INTER_CUBIC)
+                    print "read->ok"
                     img_queue.put(img_raw)
-                    #time.sleep(1)
-                    print "--> ok size:"
-                    print img_queue.qsize();
+
+                    print "put->ok"
                 else:
                     print "no reading camera!"
                     exitFalg = 0
-            if count==10:
-                break
 	    
     else:
         print "camera open failed"
@@ -77,7 +67,7 @@ def seach_face(name):
     global img_queue_show
     global exitFlag
     global count
-    face_cascade=cv2.CascadeClassifier('/home/pi/Desktop/stream/lib_xml/haarcascade_frontalface_default.xml')
+    face_cascade=cv2.CascadeClassifier('/home/tuan/Desktop/smarthome_cameraIP_FaceRecognition/lib_xml/haarcascade_frontalface_default.xml')
     while(exitFlag):
         Lock.acquire()
         if not img_queue.empty() and img_queue.qsize()>1:
@@ -91,7 +81,7 @@ def seach_face(name):
             print "xly 1..."
             faces = face_cascade.detectMultiScale(
                     gray,
-                    scaleFactor=1.2,
+                    scaleFactor=1.3,
                     minNeighbors=5
             )
             print "...>ok"
@@ -107,44 +97,53 @@ def seach_face(name):
             Lock.release()
         else:
             Lock.release()
-        if count==10:
-            break
     cap.release()
     cv2.destroyAllWindows()
 def show_img(threadName):
     global exitFlag
     global count
     global img_queue_show
+    # Start time
+    
+    count =0
+    kt=0
     while exitFlag:
         if cv2.waitKey(10)==ord('q'):
-                exitFlag=0
-        if not img_queue_show.empty() and img_queue_show.qsize()>2:
-
+            end = time.time()
+            tocdo=count/(end-start)
+            print "toc do xu ly"
+            print tocdo
+            exitFlag=0
+        if not img_queue_show.empty() and img_queue_show.qsize()>1:
+            if kt==0:
+                start = time.time()
+                kt=1
             img_raw=img_queue_show.get()
+            print "show"
             cv2.namedWindow( "Display window", cv2.WINDOW_NORMAL )
-	    img = cv2.resize (img_raw, None, fx = 0.3, fy = 0.3)
+            img = cv2.resize (img_raw, None, fx = 0.5, fy = 0.5)
             cv2.imshow('Display window',img)
-      
-        #else:
+            count+=1
+        else:
+            pass
             #print "walting...\n"
             #print "size:%d"%(img_queue_show.qsize())
             #time.sleep(1)
-        if count ==10:
-            break
 #chuong trinh chinh
 count =-100
 exitFlag = 1      
-img_queue = Queue.Queue(20)
-img_queue_show = Queue.Queue(20)
+img_queue = Queue.Queue(4)
+img_queue_show = Queue.Queue(5)
 Lock = threading.Lock()
 ip=str(sys.argv[0])
-url = "rtsp://192.168.1.10:554/onvif1"
-cap = cv2.VideoCapture(url)
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp"
+url = "rtsp://10.1.17.83:554/onvif1"
+cap = cv2.VideoCapture(url,cv2.CAP_FFMPEG)
 if cap.isOpened():
     thread1 = thread_read_img("thread_read_img",cap)
     thread1.start()
     #------------------------
-    thread2 = thread_seach_face("thread_seach_face 1")
+    thread2 = thread_seach_face("thread_seach_face ")
     thread2.start()
     #----------------------
     thread3 = thread_show_img("thread_show_img")
